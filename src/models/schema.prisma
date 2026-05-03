@@ -227,7 +227,9 @@ model Badge {
   description String
   icon        String                  // emoji ou nome de asset
   category    BadgeCategory
-  threshold   Int                     // valor necessário para ganhar
+  threshold   Int
+
+  childBadges ChildBadge[]                     // valor necessário para ganhar
 
 
 

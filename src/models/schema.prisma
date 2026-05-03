@@ -184,7 +184,6 @@ model Reward {
 
   parent          User          @relation(fields: [parentId], references: [id], onDelete: Cascade)
   redemptions     Redemption[]
-  childBadges     ChildBadge[]
 
   @@map("rewards")
 }

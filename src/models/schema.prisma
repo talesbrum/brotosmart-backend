@@ -1,3 +1,13 @@
+model ChildProfile {
+  id      String  @id
+  // ... campos existentes ...
+  badges  ChildBadge[]   // ← adicionar essa linha
+}
+git add src/models/schema.prisma
+git commit -m "fix: add missing ChildBadge relation on ChildProfile"
+git push
+cd /Users/carlamartins/Downloads/brotosmart/backend
+nano src/models/schema.prisma
 // BrotoSmart — Prisma Schema
 // Banco: PostgreSQL
 
@@ -25,6 +35,8 @@ model User {
 
   children     ChildProfile[]
   rewards      Reward[]
+  badges      ChildBadge[]
+badges    ChildBadge[]
 
   @@map("users")
 }

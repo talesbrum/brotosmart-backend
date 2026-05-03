@@ -25,6 +25,7 @@ model User {
 
   children     ChildProfile[]
   rewards      Reward[]
+  badges      ChildBadge[]
 
   @@map("users")
 }

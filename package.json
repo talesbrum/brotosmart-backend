@@ -1,0 +1,43 @@
+{
+  "name": "brotosmart-backend",
+  "version": "1.0.0",
+  "description": "API BrotoSmart",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "jest --runInBand --forceExit",
+    "test:coverage": "jest --coverage",
+    "db:migrate": "npx prisma migrate dev --schema src/models/schema.prisma",
+    "db:generate": "npx prisma generate --schema src/models/schema.prisma",
+    "db:seed": "node src/seeds/index.js",
+    "db:studio": "npx prisma studio --schema src/models/schema.prisma",
+    "job:streak": "node src/jobs/streakWatcher.js"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"],
+    "collectCoverageFrom": ["src/**/*.js", "!src/seeds/**"],
+    "coverageReporters": ["text", "lcov"],
+    "setupFiles": ["dotenv/config"]
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "firebase-admin": "^12.0.0",
+    "@prisma/client": "^5.8.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "dotenv": "^16.3.1",
+    "express-validator": "^7.0.1",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3",
+    "prisma": "^5.8.0",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4"
+  }
+}

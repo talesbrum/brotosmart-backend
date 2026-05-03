@@ -1,0 +1,276 @@
+// BrotoSmart — Prisma Schema
+// Banco: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────
+// PAIS / RESPONSÁVEIS
+// ──────────────────────────────
+model User {
+  id           String   @id @default(uuid())
+  firebaseUid  String   @unique @map("firebase_uid")
+  email        String   @unique
+  name         String
+  pushToken    String?  @map("push_token")
+  parentPin    String?  @map("parent_pin")   // PIN de 4 dígitos para acesso ao painel
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  children     ChildProfile[]
+  rewards      Reward[]
+
+  @@map("users")
+}
+
+// ──────────────────────────────
+// PERFIS DAS CRIANÇAS
+// ──────────────────────────────
+model ChildProfile {
+  id              String   @id @default(uuid())
+  parentId        String   @map("parent_id")
+  name            String
+  age             Int
+  avatar          String   @default("seed_01") // nome do avatar/personagem
+  dailyLimitMins  Int      @default(15) @map("daily_limit_mins")
+  activeTrackSlugs Json   @default("[\"matematica\",\"portugues\",\"conhecimentos-gerais\",\"ciencias\",\"geografia-brasil\"]") @map("active_track_slugs")
+  // Dispositivo próprio da criança (PRD multi-device)
+  inviteCode       String?  @unique @map("invite_code")       // código de 6 chars para vincular
+  inviteExpiresAt  DateTime? @map("invite_expires_at")        // expira em 48h
+  childDeviceToken String?  @map("child_device_token")        // FCM token do celular da criança
+  hasOwnDevice     Boolean  @default(false) @map("has_own_device")
+  sessionLockedAt  DateTime? @map("session_locked_at")        // pai encerrou remotamente
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  parent          User     @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  progress        Progress?
+  sessions        Session[]
+  quizAnswers     QuizAnswer[]
+  redemptions     Redemption[]
+  childBadges     ChildBadge[]
+  deviceSessions  ChildDeviceSession[]
+
+  @@map("child_profiles")
+}
+
+// ──────────────────────────────
+// PROGRESSO (SEMENTES + STREAK)
+// ──────────────────────────────
+model Progress {
+  id              String   @id @default(uuid())
+  childId         String   @unique @map("child_id")
+  seeds           Int      @default(0)          // moeda virtual
+  streakDays      Int      @default(0) @map("streak_days")  // Chama do Saber
+  streakPausedAt  DateTime? @map("streak_paused_at")              // pausa a chama sem apagar (PRD §3.2)
+  lastActivityAt  DateTime? @map("last_activity_at")
+  gardenLevel     Int      @default(1) @map("garden_level")
+  gardenSlots     Json     @default("[]") @map("garden_slots")
+  totalMinutes    Int      @default(0) @map("total_minutes")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  child           ChildProfile @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@map("progress")
+}
+
+// ──────────────────────────────
+// TRILHAS DE APRENDIZADO
+// ──────────────────────────────
+model LearningTrack {
+  id          String   @id @default(uuid())
+  name        String   // "Matemática", "Português"
+  slug        String   @unique // "matematica", "portugues"
+  icon        String
+  color       String
+  description String
+
+  activities  Activity[]
+
+  @@map("learning_tracks")
+}
+
+// ──────────────────────────────
+// ATIVIDADES / QUIZZES
+// ──────────────────────────────
+model Activity {
+  id          String   @id @default(uuid())
+  trackId     String   @map("track_id")
+  title       String
+  type        ActivityType @default(QUIZ)
+  level       Int      @default(1)  // 1 = fácil → 5 = difícil
+  seedsReward Int      @default(10) @map("seeds_reward")
+  question    String
+  options     Json     // ["A", "B", "C", "D"]
+  correctIndex Int     @map("correct_index") // índice da opção correta
+  explanation String   // feedback para a criança
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  track       LearningTrack @relation(fields: [trackId], references: [id])
+  answers     QuizAnswer[]
+
+  @@map("activities")
+}
+
+enum ActivityType {
+  QUIZ
+  FILL_BLANK
+  MATCH
+}
+
+// ──────────────────────────────
+// RESPOSTAS DOS QUIZZES
+// ──────────────────────────────
+model QuizAnswer {
+  id          String   @id @default(uuid())
+  childId     String   @map("child_id")
+  activityId  String   @map("activity_id")
+  isCorrect   Boolean  @map("is_correct")
+  answeredAt  DateTime @default(now()) @map("answered_at")
+
+  child       ChildProfile @relation(fields: [childId], references: [id], onDelete: Cascade)
+  activity    Activity     @relation(fields: [activityId], references: [id])
+
+  @@map("quiz_answers")
+}
+
+// ──────────────────────────────
+// SESSÕES DE USO
+// ──────────────────────────────
+model Session {
+  id              String    @id @default(uuid())
+  childId         String    @map("child_id")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  durationMins    Float?    @map("duration_mins")
+  endReason       SessionEndReason? @map("end_reason")
+  zombiePauses    Int       @default(0) @map("zombie_pauses") // vezes que Modo Zumbi ativou
+  seedsEarned     Int       @default(0) @map("seeds_earned")
+
+  child           ChildProfile @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+enum SessionEndReason {
+  TIME_LIMIT    // 15 minutos atingidos
+  PARENT_ENDED  // pai encerrou
+  CHILD_EXITED  // criança saiu
+}
+
+// ──────────────────────────────
+// PREMIAÇÕES (PRD §4)
+// ──────────────────────────────
+
+// Catálogo de premiações cadastradas pelos pais
+model Reward {
+  id              String        @id @default(uuid())
+  parentId        String        @map("parent_id")
+  name            String                              // ex: "Sorvete especial"
+  type            RewardType                          // REAL | GAME_TIME
+  seedsCost       Int           @map("seeds_cost")   // custo em sementes (definido pelo pai)
+  description     String?                             // detalhes opcionais
+  gameName        String?       @map("game_name")    // para GAME_TIME: nome do jogo
+  gameDurationMins Int?         @map("game_duration_mins") // minutos de jogo
+  validUntil      DateTime?     @map("valid_until")  // prazo de validade opcional
+  weeklyLimit     Int?          @map("weekly_limit") // limite de resgates por semana
+  isActive        Boolean       @default(true) @map("is_active")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  parent          User          @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  redemptions     Redemption[]
+  childBadges     ChildBadge[]
+
+  @@map("rewards")
+}
+
+// Pedidos de resgate feitos pelas crianças
+model Redemption {
+  id              String            @id @default(uuid())
+  rewardId        String            @map("reward_id")
+  childId         String            @map("child_id")
+  status          RedemptionStatus  @default(PENDING)
+  seedsSpent      Int               @map("seeds_spent")
+  parentMessage   String?           @map("parent_message") // mensagem na recusa com carinho
+  requestedAt     DateTime          @default(now()) @map("requested_at")
+  resolvedAt      DateTime?         @map("resolved_at")
+
+  reward          Reward        @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  child           ChildProfile  @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@map("redemptions")
+}
+
+enum RewardType {
+  REAL        // prêmio físico (sorvete, passeio, brinquedo)
+  GAME_TIME   // minutos de jogo (Roblox, Minecraft, etc)
+}
+
+enum RedemptionStatus {
+  PENDING    // aguardando aprovação dos pais
+  APPROVED   // aprovado pelo pai
+  REJECTED   // recusado com ou sem mensagem
+  DELIVERED  // entregue/cumprido (confirmado pelo pai)
+}
+
+// ──────────────────────────────
+// DISTINTIVOS / BADGES (PRD §3.2)
+// ──────────────────────────────
+model Badge {
+  id          String   @id @default(uuid())
+  slug        String   @unique        // ex: "streak_7", "mat_10_phases"
+  name        String                  // ex: "7 dias seguidos"
+  description String
+  icon        String                  // emoji ou nome de asset
+  category    BadgeCategory
+  threshold   Int                     // valor necessário para ganhar
+
+  childBadges ChildBadge[]
+
+  @@map("badges")
+}
+
+model ChildBadge {
+  id          String   @id @default(uuid())
+  childId     String   @map("child_id")
+  badgeId     String   @map("badge_id")
+  earnedAt    DateTime @default(now()) @map("earned_at")
+
+  child       ChildProfile @relation(fields: [childId], references: [id], onDelete: Cascade)
+  badge       Badge        @relation(fields: [badgeId], references: [id])
+
+  @@unique([childId, badgeId])
+  @@map("child_badges")
+}
+
+enum BadgeCategory {
+  STREAK        // dias consecutivos
+  LEARNING      // atividades completadas por matéria
+  SEEDS         // sementes acumuladas
+  GARDEN        // níveis do jardim
+  SESSIONS      // sessões completadas
+}
+
+// ──────────────────────────────
+// VINCULAÇÃO DE DISPOSITIVO DA CRIANÇA
+// ──────────────────────────────
+// Token JWT de longa duração gerado após scan do QR code.
+// Fica armazenado no AsyncStorage do celular da criança.
+model ChildDeviceSession {
+  id          String   @id @default(uuid())
+  childId     String   @map("child_id")
+  tokenHash   String   @unique @map("token_hash") // hash SHA-256 do JWT
+  deviceName  String?  @map("device_name")        // ex: "iPhone da Ana"
+  createdAt   DateTime @default(now()) @map("created_at")
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  child       ChildProfile @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@map("child_device_sessions")
+}

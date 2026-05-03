@@ -58,7 +58,7 @@ router.get('/progress/:childId', authenticate,
   validate, authorizeChild, learningController.getProgress
 );
 
-router.get('/learning/levels', learningController.getLevels);
+// router.get('/learning/levels', learningController.getLevels); // TODO: implement
 
 // ── Sessoes ───────────────────────────────────────────────────────────────────
 router.post('/sessions/start', authenticateAny,
